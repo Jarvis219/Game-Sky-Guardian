@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { GameState, Player, Enemy, Bullet, Particle, EnemyType } from '../types';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, PLAYER_SPEED, KEYS, PLAYER_SHOOT_DELAY, BULLET_SPEED, ENEMY_BULLET_SPEED, PLAYER_SIZE } from '../constants';
+import { GameState, Player, Enemy, Bullet, Particle, EnemyType, PowerUp } from '../types';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, COLORS, PLAYER_SPEED, KEYS, PLAYER_SHOOT_DELAY, BULLET_SPEED, ENEMY_BULLET_SPEED, PLAYER_SIZE, POWERUP_SPEED } from '../constants';
 import { generateId, checkCollision, getRandomRange, clamp } from '../utils/gameUtils';
 import { audioService } from '../services/audioService';
 
@@ -38,18 +38,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     maxHp: 3,
     speed: PLAYER_SPEED,
     shootTimer: 0,
-    invulnerableTimer: 0
+    invulnerableTimer: 0,
+    weaponLevel: 1 // Start at level 1
   });
 
   const enemiesRef = useRef<Enemy[]>([]);
   const bulletsRef = useRef<Bullet[]>([]);
   const particlesRef = useRef<Particle[]>([]);
-  const starsRef = useRef<Star[]>([]); // Background stars
+  const powerUpsRef = useRef<PowerUp[]>([]); // New: PowerUps
+  const starsRef = useRef<Star[]>([]); 
   const keysPressed = useRef<Set<string>>(new Set());
   const scoreRef = useRef(0);
   const spawnTimerRef = useRef(0);
+  const powerUpSpawnTimerRef = useRef(0); // Timer for spawning gifts
   const difficultyMultiplierRef = useRef(1);
-  const bgScrollRef = useRef(0); // For grid scrolling
+  const bgScrollRef = useRef(0); 
 
   // Initialize Stars
   useEffect(() => {
@@ -101,11 +104,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       playerRef.current.pos = { x: CANVAS_WIDTH / 2 - 16, y: CANVAS_HEIGHT - 100 };
       playerRef.current.hp = 3;
       playerRef.current.invulnerableTimer = 2;
+      playerRef.current.weaponLevel = 1; // Reset weapon
       enemiesRef.current = [];
       bulletsRef.current = [];
       particlesRef.current = [];
+      powerUpsRef.current = [];
       scoreRef.current = 0;
       spawnTimerRef.current = 0;
+      powerUpSpawnTimerRef.current = 10; // First powerup after 10s
       difficultyMultiplierRef.current = 1;
       setScore(0);
       setLives(3);
@@ -187,29 +193,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     // --- Player Shooting ---
     if (player.shootTimer > 0) player.shootTimer -= dt;
     if (KEYS.SHOOT.some(k => keysPressed.current.has(k)) && player.shootTimer <= 0) {
-      // Create two bullets for better feel
-      bulletsRef.current.push({
-        id: generateId(),
-        pos: { x: player.pos.x, y: player.pos.y + 10 },
-        velocity: { x: 0, y: -BULLET_SPEED },
-        width: 4,
-        height: 16,
-        color: COLORS.playerBullet,
-        markedForDeletion: false,
-        isPlayerBullet: true,
-        damage: 1
-      });
-      bulletsRef.current.push({
-        id: generateId(),
-        pos: { x: player.pos.x + player.width - 4, y: player.pos.y + 10 },
-        velocity: { x: 0, y: -BULLET_SPEED },
-        width: 4,
-        height: 16,
-        color: COLORS.playerBullet,
-        markedForDeletion: false,
-        isPlayerBullet: true,
-        damage: 1
-      });
+      
+      const spawnBullet = (offsetX: number, angleDegrees: number = 0) => {
+        const rad = (angleDegrees * Math.PI) / 180;
+        bulletsRef.current.push({
+            id: generateId(),
+            pos: { x: player.pos.x + player.width/2 - 2 + offsetX, y: player.pos.y },
+            velocity: { 
+                x: Math.sin(rad) * BULLET_SPEED, 
+                y: -Math.cos(rad) * BULLET_SPEED 
+            },
+            width: 4,
+            height: 16,
+            color: COLORS.playerBullet,
+            markedForDeletion: false,
+            isPlayerBullet: true,
+            damage: 1
+        });
+      };
+
+      // Weapon Levels
+      if (player.weaponLevel === 1) {
+          // Double Stream (Parallel)
+          spawnBullet(-10, 0);
+          spawnBullet(10, 0);
+      } else if (player.weaponLevel === 2) {
+          // Spread Shot (3 bullets)
+          spawnBullet(0, 0);
+          spawnBullet(-10, -10);
+          spawnBullet(10, 10);
+      } else {
+          // Annihilator (5 bullets)
+          spawnBullet(0, 0);
+          spawnBullet(-8, -10);
+          spawnBullet(8, 10);
+          spawnBullet(-16, -20);
+          spawnBullet(16, 20);
+      }
       
       player.shootTimer = PLAYER_SHOOT_DELAY;
       audioService.playShoot();
@@ -217,6 +237,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
 
     // --- Invulnerability ---
     if (player.invulnerableTimer > 0) player.invulnerableTimer -= dt;
+
+    // --- PowerUp Spawning ---
+    powerUpSpawnTimerRef.current -= dt;
+    if (powerUpSpawnTimerRef.current <= 0) {
+        powerUpsRef.current.push({
+            id: generateId(),
+            pos: { x: getRandomRange(50, CANVAS_WIDTH - 50), y: -40 },
+            velocity: { x: 0, y: POWERUP_SPEED },
+            width: 30,
+            height: 30,
+            color: COLORS.powerUp,
+            markedForDeletion: false,
+            type: 'WEAPON_UPGRADE',
+            pulseTimer: 0
+        });
+        // Next powerup in 15-25 seconds
+        powerUpSpawnTimerRef.current = getRandomRange(15, 25);
+    }
 
     // --- Enemy Spawning ---
     spawnTimerRef.current -= dt;
@@ -259,6 +297,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       
       spawnTimerRef.current = Math.max(0.5, 1.5 - (difficultyMultiplierRef.current * 0.1));
     }
+
+    // --- Update PowerUps ---
+    powerUpsRef.current.forEach(p => {
+        p.pos.y += p.velocity.y * dt;
+        p.pulseTimer += dt * 5; // For visual pulsing
+        // Clean up offscreen
+        if (p.pos.y > CANVAS_HEIGHT) p.markedForDeletion = true;
+    });
 
     // --- Update Enemies ---
     enemiesRef.current.forEach(enemy => {
@@ -308,6 +354,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     });
 
     // --- Collision Detection ---
+    
+    // PowerUp vs Player
+    powerUpsRef.current.forEach(p => {
+        if (!p.markedForDeletion && checkCollision(p, player)) {
+            p.markedForDeletion = true;
+            // Upgrade Weapon
+            if (player.weaponLevel < 3) {
+                player.weaponLevel++;
+            }
+            // Add score
+            scoreRef.current += 500;
+            setScore(scoreRef.current);
+            audioService.playPowerUp();
+            createExplosion(p.pos.x + p.width/2, p.pos.y + p.height/2, COLORS.powerUp, 20);
+        }
+    });
+
+    // Bullets vs Enemies
     bulletsRef.current.filter(b => b.isPlayerBullet).forEach(bullet => {
       enemiesRef.current.forEach(enemy => {
         if (!bullet.markedForDeletion && !enemy.markedForDeletion && checkCollision(bullet, enemy)) {
@@ -326,6 +390,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
       });
     });
 
+    // Bullets vs Player
     if (player.invulnerableTimer <= 0) {
        bulletsRef.current.filter(b => !b.isPlayerBullet).forEach(bullet => {
          if (!bullet.markedForDeletion && checkCollision(bullet, player)) {
@@ -346,10 +411,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     enemiesRef.current = enemiesRef.current.filter(e => !e.markedForDeletion);
     bulletsRef.current = bulletsRef.current.filter(b => !b.markedForDeletion);
     particlesRef.current = particlesRef.current.filter(p => !p.markedForDeletion);
+    powerUpsRef.current = powerUpsRef.current.filter(p => !p.markedForDeletion);
   };
 
   const handlePlayerHit = () => {
     playerRef.current.hp -= 1;
+    playerRef.current.weaponLevel = 1; // Reset weapon on hit
     setLives(playerRef.current.hp);
     createExplosion(playerRef.current.pos.x + PLAYER_SIZE/2, playerRef.current.pos.y + PLAYER_SIZE/2, COLORS.player, 25);
     audioService.playExplosion();
@@ -382,6 +449,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     ctx.lineTo(-p.width/2, p.height/2); // Left wing tip
     ctx.closePath();
     ctx.fill();
+
+    // Weapon pods based on level
+    if (p.weaponLevel >= 2) {
+        ctx.fillStyle = COLORS.powerUp;
+        // Left pod
+        ctx.fillRect(-p.width/2 - 4, 0, 4, 10);
+        // Right pod
+        ctx.fillRect(p.width/2, 0, 4, 10);
+    }
+    if (p.weaponLevel >= 3) {
+        ctx.fillStyle = '#ff00ff'; // Extra color for max level
+        // Inner pods
+        ctx.fillRect(-p.width/4 - 2, -5, 4, 8);
+        ctx.fillRect(p.width/4 - 2, -5, 4, 8);
+    }
 
     // Cockpit
     ctx.fillStyle = '#ffffff';
@@ -506,6 +588,36 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
     ctx.restore();
   };
 
+  const drawPowerUp = (ctx: CanvasRenderingContext2D, p: PowerUp) => {
+      ctx.save();
+      ctx.translate(p.pos.x + p.width/2, p.pos.y + p.height/2);
+      
+      const scale = 1 + Math.sin(p.pulseTimer) * 0.1;
+      ctx.scale(scale, scale);
+
+      // Glow box
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = p.color;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-p.width/2, -p.height/2, p.width, p.height);
+
+      // Inner fill
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = 0.3;
+      ctx.fillRect(-p.width/2, -p.height/2, p.width, p.height);
+
+      // Icon (Letter 'W' or Lightning)
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('UP', 0, 1);
+
+      ctx.restore();
+  };
+
   const draw = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -539,6 +651,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ gameState, setGameState, setSco
             ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke(); 
         }
     }
+
+    // Draw PowerUps
+    powerUpsRef.current.forEach(p => drawPowerUp(ctx, p));
 
     // Draw Player
     const p = playerRef.current;

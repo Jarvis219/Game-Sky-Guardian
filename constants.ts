@@ -7,6 +7,7 @@ export const PLAYER_SIZE = 32;
 
 export const BULLET_SPEED = 600;
 export const ENEMY_BULLET_SPEED = 300;
+export const POWERUP_SPEED = 100;
 
 export const SPAWN_RATE_INITIAL = 1.5; // seconds
 
@@ -16,7 +17,8 @@ export const COLORS = {
   enemyBasic: '#ff2a2a', // Neon Red
   enemyZigzag: '#ff00ff', // Neon Pink
   enemyBullet: '#ffaa00', // Neon Orange
-  particle: '#ffffff'
+  particle: '#ffffff',
+  powerUp: '#ffff00' // Neon Yellow
 };
 
 export const KEYS = {

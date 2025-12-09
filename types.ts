@@ -36,11 +36,17 @@ export interface Player extends Entity {
   speed: number;
   shootTimer: number;
   invulnerableTimer: number;
+  weaponLevel: number; // Cấp độ vũ khí: 1, 2, 3
 }
 
 export interface Bullet extends Entity {
   isPlayerBullet: boolean;
   damage: number;
+}
+
+export interface PowerUp extends Entity {
+  type: 'WEAPON_UPGRADE';
+  pulseTimer: number;
 }
 
 export interface Particle extends Entity {

@@ -1,0 +1,5 @@
+{
+  "name": "Sky Guardian: Aether Defense",
+  "description": "A high-performance HTML5 Canvas space shooter built with React and TypeScript. Features particle systems, dynamic enemy waves, and retro-style synthesized audio.",
+  "requestFramePermissions": []
+}

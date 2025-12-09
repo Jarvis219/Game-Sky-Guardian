@@ -30,27 +30,42 @@ export interface Enemy extends Entity {
   shootTimer: number;
 }
 
+export enum PowerUpType {
+  WEAPON_UPGRADE = 'WEAPON_UPGRADE', // Nâng cấp súng thường (Đạn vàng)
+  MISSILE = 'MISSILE',               // Thêm tên lửa (Hộp tím)
+  SHIELD = 'SHIELD',                 // Bất tử 10s (Hộp trắng/xanh)
+  SHIP_SKIN = 'SHIP_SKIN'            // Đổi ngoại hình + Súng (Hộp đỏ)
+}
+
+export enum ShipStyle {
+  DEFAULT = 'DEFAULT',
+  ASSAULT = 'ASSAULT' // Skin mới
+}
+
 export interface Player extends Entity {
   hp: number;
   maxHp: number;
   speed: number;
   shootTimer: number;
   invulnerableTimer: number;
-  weaponLevel: number; // Cấp độ vũ khí: 1, 2, 3
+  weaponLevel: number; 
+  hasMissiles: boolean; // Có tên lửa không
+  style: ShipStyle;     // Kiểu dáng tàu
 }
 
 export interface Bullet extends Entity {
   isPlayerBullet: boolean;
   damage: number;
+  isMissile?: boolean; // Đánh dấu là tên lửa
 }
 
 export interface PowerUp extends Entity {
-  type: 'WEAPON_UPGRADE';
+  type: PowerUpType;
   pulseTimer: number;
 }
 
 export interface Particle extends Entity {
-  life: number; // 0 to 1
+  life: number; 
   decay: number;
   size: number;
 }
